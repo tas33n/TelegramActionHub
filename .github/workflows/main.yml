@@ -1,0 +1,72 @@
+name: Build Debug APK
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Setup Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: '17'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Expo CLI
+        run: npm install -g expo-cli eas-cli
+      
+      - name: Login to Expo
+        run: npx expo login -u ${{ secrets.EXPO_USERNAME }} -p ${{ secrets.EXPO_PASSWORD }}
+        env:
+          EXPO_USERNAME: ${{ secrets.EXPO_USERNAME }}
+          EXPO_PASSWORD: ${{ secrets.EXPO_PASSWORD }}
+      
+      - name: Install EAS build dependencies
+        run: npm install @expo/config-plugins @expo/prebuild-config
+      
+      - name: Create local properties
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      
+      - name: Configure Gradle
+        run: |
+          mkdir -p android/app/src/main/assets
+          mkdir -p android/app/build/intermediates/assets/release
+          mkdir -p android/app/build/intermediates/assets/debug
+      
+      - name: Build Android APK
+        run: |
+          npx expo prebuild --platform android --no-install
+          cd android && ./gradlew assembleDebug
+      
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      
+      - name: Upload APK to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: android/app/build/outputs/apk/debug/app-debug.apk
+          asset_name: telegram-monitor-${{ github.event.release.tag_name }}-debug.apk
+          tag: ${{ github.ref }}
+          overwrite: true
+
+# Note: You'll need to add EXPO_USERNAME and EXPO_PASSWORD as secrets in your GitHub repository
+# For non-Expo account builds, you may need to adjust this workflow
