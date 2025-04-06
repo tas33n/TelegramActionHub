@@ -1,4 +1,6 @@
-name: Build Debug APK
+const fs = require('fs');
+
+const workflowContent = `name: Build Debug APK
 
 on:
   release:
@@ -33,16 +35,16 @@ jobs:
         run: npm install -g expo-cli eas-cli
       
       - name: Login to Expo
-        run: npx expo login -u ${{ secrets.EXPO_USERNAME }} -p ${{ secrets.EXPO_PASSWORD }}
+        run: npx expo login -u \${{ secrets.EXPO_USERNAME }} -p \${{ secrets.EXPO_PASSWORD }}
         env:
-          EXPO_USERNAME: ${{ secrets.EXPO_USERNAME }}
-          EXPO_PASSWORD: ${{ secrets.EXPO_PASSWORD }}
+          EXPO_USERNAME: \${{ secrets.EXPO_USERNAME }}
+          EXPO_PASSWORD: \${{ secrets.EXPO_PASSWORD }}
       
       - name: Install EAS build dependencies
         run: npm install @expo/config-plugins @expo/prebuild-config
       
       - name: Create local properties
-        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+        run: echo "sdk.dir=\$ANDROID_HOME" > android/local.properties
       
       - name: Configure Gradle
         run: |
@@ -64,11 +66,14 @@ jobs:
       - name: Upload APK to Release
         uses: svenstaro/upload-release-action@v2
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          repo_token: \${{ secrets.GITHUB_TOKEN }}
           file: android/app/build/outputs/apk/debug/app-debug.apk
-          asset_name: telegram-monitor-${{ github.event.release.tag_name }}-debug.apk
-          tag: ${{ github.ref }}
+          asset_name: telegram-monitor-\${{ github.event.release.tag_name }}-debug.apk
+          tag: \${{ github.ref }}
           overwrite: true
 
 # Note: You'll need to add EXPO_USERNAME and EXPO_PASSWORD as secrets in your GitHub repository
-# For non-Expo account builds, you may need to adjust this workflow
+# For non-Expo account builds, you may need to adjust this workflow`;
+
+fs.writeFileSync('github-workflow-build-apk.yml', workflowContent);
+console.log('GitHub workflow file updated successfully!');
