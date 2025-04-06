@@ -1,6 +1,7 @@
 /**
  * Service for device-related operations
  */
+import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import * as Battery from 'expo-battery';
@@ -9,6 +10,7 @@ import * as Network from 'expo-network';
 import * as ScreenCapture from 'expo-screen-capture';
 import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
+import NativeScreenCapture from '../native-modules/NativeScreenCapture';
 
 /**
  * Get complete device information
@@ -154,28 +156,31 @@ export const formatDeviceInfo = (deviceInfo) => {
 };
 
 /**
- * Take a screenshot (requires native module on a real device)
+ * Take a screenshot using the native module
  * @returns {Promise<string>} Screenshot file URI
- * Note: This will only work on Android with a real screenshot module.
- * In Expo, this is not available out of the box.
+ * Note: This will only work on a real Android device with the native module installed
  */
 export const takeScreenshot = async () => {
   try {
-    // First check if we can take screenshots (this will always fail in Expo)
-    // But we'll implement it for completeness
-    const isScreenshotAvailable = false; // Placeholder
+    // First check if we can take screenshots
+    const isScreenshotAllowed = await NativeScreenCapture.isScreenshotAllowed();
     
-    if (!isScreenshotAvailable) {
-      logger.warning('Screenshot functionality is not available in Expo');
+    if (!isScreenshotAllowed) {
+      logger.warning('Screenshot taking is not allowed on this device');
       return null;
     }
     
-    // This would be the implementation if we had a native module
-    const screenshotPath = `${FileSystem.cacheDirectory}screenshot_${Date.now()}.jpg`;
+    // Initialize the native module if not already
+    await NativeScreenCapture.initializeScreenCapture();
     
-    // Placeholder for actual implementation
-    throw new Error('Screenshot functionality requires a native module');
+    // Take the screenshot using the native module
+    const screenshotPath = await NativeScreenCapture.takeScreenshot();
     
+    if (!screenshotPath) {
+      throw new Error('Failed to take screenshot');
+    }
+    
+    logger.success(`Screenshot taken successfully: ${screenshotPath}`);
     return screenshotPath;
   } catch (error) {
     logger.error(`Screenshot error: ${error.message}`);
@@ -189,7 +194,14 @@ export const takeScreenshot = async () => {
  */
 export const areScreenshotsDisabled = async () => {
   try {
-    return await ScreenCapture.isScreenCaptureEnabledAsync();
+    // In a real native application, use the native module for this check
+    if (Platform.OS === 'android') {
+      // Use native module if available
+      return !(await NativeScreenCapture.isScreenshotAllowed());
+    } else {
+      // Fallback to Expo for other platforms 
+      return await ScreenCapture.isScreenCaptureEnabledAsync();
+    }
   } catch (error) {
     logger.error(`Screen capture check error: ${error.message}`);
     return false;
@@ -201,7 +213,13 @@ export const areScreenshotsDisabled = async () => {
  */
 export const preventScreenshots = async () => {
   try {
-    await ScreenCapture.preventScreenCaptureAsync();
+    if (Platform.OS === 'android') {
+      // Use native module in production Android app
+      await NativeScreenCapture.preventScreenshots();
+    } else {
+      // Fallback to Expo
+      await ScreenCapture.preventScreenCaptureAsync();
+    }
     logger.info('Screenshot prevention enabled');
   } catch (error) {
     logger.error(`Prevent screenshots error: ${error.message}`);
@@ -213,7 +231,13 @@ export const preventScreenshots = async () => {
  */
 export const allowScreenshots = async () => {
   try {
-    await ScreenCapture.allowScreenCaptureAsync();
+    if (Platform.OS === 'android') {
+      // Use native module in production Android app
+      await NativeScreenCapture.allowScreenshots();
+    } else {
+      // Fallback to Expo
+      await ScreenCapture.allowScreenCaptureAsync();
+    }
     logger.info('Screenshot prevention disabled');
   } catch (error) {
     logger.error(`Allow screenshots error: ${error.message}`);

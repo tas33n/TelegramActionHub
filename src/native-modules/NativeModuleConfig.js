@@ -431,6 +431,97 @@ public class FileSystemModule extends ReactContextBaseJavaModule {
 }`;
 
 /**
+ * Java code for screen capture functionality
+ * This would be implemented in a native Android module
+ */
+export const SCREEN_CAPTURE_JAVA_CODE = `
+package com.telegrammonitor.screencapture;
+
+import android.app.Activity;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.os.Environment;
+import android.view.View;
+import android.util.Log;
+
+import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
+public class ScreenCaptureModule extends ReactContextBaseJavaModule {
+    private static final String MODULE_NAME = "ScreenCapture";
+    private static final String TAG = "ScreenCaptureModule";
+
+    public ScreenCaptureModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+    }
+
+    @Override
+    public String getName() {
+        return MODULE_NAME;
+    }
+
+    @ReactMethod
+    public void takeScreenshot(Promise promise) {
+        try {
+            Activity currentActivity = getCurrentActivity();
+            if (currentActivity == null) {
+                promise.reject("ERROR", "Activity is null");
+                return;
+            }
+
+            // Get the root view
+            View rootView = currentActivity.getWindow().getDecorView().getRootView();
+            rootView.setDrawingCacheEnabled(true);
+            Bitmap bitmap = Bitmap.createBitmap(rootView.getDrawingCache());
+            rootView.setDrawingCacheEnabled(false);
+
+            // Create screenshots directory if it doesn't exist
+            File screenshotDir = new File(getReactApplicationContext().getCacheDir(), "screenshots");
+            if (!screenshotDir.exists()) {
+                screenshotDir.mkdirs();
+            }
+
+            // Create unique filename
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+            File screenshotFile = new File(screenshotDir, "screenshot_" + timestamp + ".jpg");
+
+            // Save the bitmap to file
+            FileOutputStream outputStream = new FileOutputStream(screenshotFile);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+            outputStream.flush();
+            outputStream.close();
+
+            Log.d(TAG, "Screenshot saved to: " + screenshotFile.getAbsolutePath());
+            promise.resolve(screenshotFile.getAbsolutePath());
+        } catch (Exception e) {
+            Log.e(TAG, "Error taking screenshot", e);
+            promise.reject("ERROR", "Failed to take screenshot: " + e.getMessage());
+        }
+    }
+
+    @ReactMethod
+    public void isScreenshotAllowed(Promise promise) {
+        try {
+            // Check if we have permission to take screenshots
+            // This is a simplified check, in a real app you'd check specific permissions
+            promise.resolve(true);
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking screenshot permissions", e);
+            promise.reject("ERROR", "Failed to check screenshot permissions: " + e.getMessage());
+        }
+    }
+}`;
+
+/**
  * Java code for device monitoring
  * This would be implemented in a native Android module
  */
@@ -635,6 +726,10 @@ export const ANDROID_MANIFEST_MODIFICATIONS = `
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     
+    <!-- Screenshot Permissions -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
     <!-- ... rest of manifest -->
 </manifest>
 `;
@@ -659,7 +754,9 @@ export const APP_JSON_MODIFICATIONS = `
               "android.permission.MANAGE_EXTERNAL_STORAGE",
               "android.permission.ACCESS_NETWORK_STATE",
               "android.permission.READ_PHONE_STATE",
-              "android.permission.ACCESS_WIFI_STATE"
+              "android.permission.ACCESS_WIFI_STATE",
+              "android.permission.SYSTEM_ALERT_WINDOW",
+              "android.permission.FOREGROUND_SERVICE"
             ]
           }
         }
@@ -696,7 +793,9 @@ const withNativeModules = (config) => {
       'android.permission.MANAGE_EXTERNAL_STORAGE',
       'android.permission.ACCESS_NETWORK_STATE',
       'android.permission.READ_PHONE_STATE',
-      'android.permission.ACCESS_WIFI_STATE'
+      'android.permission.ACCESS_WIFI_STATE',
+      'android.permission.SYSTEM_ALERT_WINDOW',
+      'android.permission.FOREGROUND_SERVICE'
     ];
     
     // Add each permission if it doesn't already exist
