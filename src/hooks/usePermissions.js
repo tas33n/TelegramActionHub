@@ -3,7 +3,6 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
-import * as Permissions from 'expo-permissions';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library';
 import * as Contacts from 'expo-contacts';
