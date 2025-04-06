@@ -1,10 +1,12 @@
 /**
- * Hook for accessing and managing the file system
+ * Enhanced hook for accessing and managing the file system including native access
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import logger from '../utils/logger';
+import NativeFileSystem from '../native-modules/NativeFileSystem';
 
 export default function useFileSystem() {
   const [currentPath, setCurrentPath] = useState(FileSystem.documentDirectory);
@@ -12,6 +14,34 @@ export default function useFileSystem() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [pathHistory, setPathHistory] = useState([]);
+  const [systemDirectories, setSystemDirectories] = useState(null);
+  const [hasNativeAccess, setHasNativeAccess] = useState(false);
+  
+  // Initialize native file system access on component mount
+  useEffect(() => {
+    const initializeNative = async () => {
+      try {
+        if (Platform.OS === 'android') {
+          // Request permission for full storage access
+          const permissionGranted = await NativeFileSystem.requestStoragePermission();
+          setHasNativeAccess(permissionGranted);
+          
+          if (permissionGranted) {
+            // Get system directories
+            const directories = await NativeFileSystem.getStorageDirectories();
+            setSystemDirectories(directories);
+            logger.success('Native file system access enabled');
+          } else {
+            logger.warning('Storage permission not granted');
+          }
+        }
+      } catch (error) {
+        logger.error(`Failed to initialize native file system: ${error.message}`);
+      }
+    };
+    
+    initializeNative();
+  }, []);
   
   /**
    * List files in a directory
@@ -265,12 +295,153 @@ export default function useFileSystem() {
     }
   }, []);
   
+  /**
+   * List files in system directories (like DCIM, Pictures, etc.)
+   * @param {string} dirType - Directory type ('dcim', 'pictures', 'downloads', etc.)
+   * @returns {Promise<Array>} List of files
+   */
+  const listSystemFiles = useCallback(async (dirType) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (!hasNativeAccess || !systemDirectories) {
+        throw new Error('Native file system access not available');
+      }
+      
+      const dirPath = systemDirectories[dirType];
+      if (!dirPath) {
+        throw new Error(`System directory not found: ${dirType}`);
+      }
+      
+      // Use native module to list files
+      const files = await NativeFileSystem.listSystemDirectoryFiles(dirPath);
+      
+      setCurrentPath(dirPath);
+      setFileList(files);
+      logger.info(`Listed ${files.length} files in system directory: ${dirType}`);
+      
+      return files;
+    } catch (error) {
+      const errorMsg = `Failed to list system files: ${error.message}`;
+      logger.error(errorMsg);
+      setError(errorMsg);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasNativeAccess, systemDirectories]);
+  
+  /**
+   * Get available system directories
+   * @returns {Object} System directories
+   */
+  const getSystemDirectories = useCallback(() => {
+    return systemDirectories || {};
+  }, [systemDirectories]);
+  
+  /**
+   * Check if external storage (SD card) is available
+   * @returns {Promise<boolean>} Whether external storage is available
+   */
+  const checkExternalStorage = useCallback(async () => {
+    try {
+      if (!hasNativeAccess) {
+        return false;
+      }
+      
+      return await NativeFileSystem.isExternalStorageAvailable();
+    } catch (error) {
+      logger.error(`Failed to check external storage: ${error.message}`);
+      return false;
+    }
+  }, [hasNativeAccess]);
+
+  /**
+   * Get media files (images, videos, etc.)
+   * @param {string} mediaType - Media type ('images', 'videos', 'audio')
+   * @param {number} limit - Maximum number of files to retrieve
+   * @returns {Promise<Array>} List of media files
+   */
+  const getMediaFiles = useCallback(async (mediaType, limit = 50) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (!hasNativeAccess) {
+        // Fall back to Expo MediaLibrary
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          throw new Error('Media library permission not granted');
+        }
+        
+        // Get media assets
+        const media = await MediaLibrary.getAssetsAsync({
+          mediaType: mediaType === 'images' ? 'photo' : 
+                    mediaType === 'videos' ? 'video' : 
+                    'unknown',
+          first: limit,
+          sortBy: MediaLibrary.SortBy.creationTime
+        });
+        
+        return media.assets.map(asset => ({
+          name: asset.filename,
+          uri: asset.uri,
+          path: asset.uri,
+          size: asset.fileSize,
+          type: mediaType,
+          width: asset.width,
+          height: asset.height,
+          duration: asset.duration,
+          creationTime: asset.creationTime
+        }));
+      } else {
+        // In a real implementation, we would use NativeFileSystem.getMediaFiles
+        // For now, we'll use Expo MediaLibrary
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          throw new Error('Media library permission not granted');
+        }
+        
+        // Get media assets
+        const media = await MediaLibrary.getAssetsAsync({
+          mediaType: mediaType === 'images' ? 'photo' : 
+                    mediaType === 'videos' ? 'video' : 
+                    'unknown',
+          first: limit,
+          sortBy: MediaLibrary.SortBy.creationTime
+        });
+        
+        return media.assets.map(asset => ({
+          name: asset.filename,
+          uri: asset.uri,
+          path: asset.uri,
+          size: asset.fileSize,
+          type: mediaType,
+          width: asset.width,
+          height: asset.height,
+          duration: asset.duration,
+          creationTime: asset.creationTime
+        }));
+      }
+    } catch (error) {
+      const errorMsg = `Failed to get media files: ${error.message}`;
+      logger.error(errorMsg);
+      setError(errorMsg);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasNativeAccess]);
+
   return {
     currentPath,
     fileList,
     isLoading,
     error,
     pathHistory,
+    systemDirectories,
+    hasNativeAccess,
     listFiles,
     navigateTo,
     navigateUp,
@@ -280,5 +451,9 @@ export default function useFileSystem() {
     createTempFile,
     downloadFile,
     saveToMediaLibrary,
+    listSystemFiles,
+    getSystemDirectories,
+    checkExternalStorage,
+    getMediaFiles
   };
 }

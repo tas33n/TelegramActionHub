@@ -21,9 +21,16 @@ const KEYS = {
  */
 export const saveSecure = async (key, value) => {
   try {
-    await SecureStore.setItemAsync(key, value);
-    logger.debug(`Securely saved: ${key}`);
-    return true;
+    // Check if we're on a platform that supports SecureStore
+    if (SecureStore && typeof SecureStore.setItemAsync === 'function') {
+      await SecureStore.setItemAsync(key, value);
+      logger.debug(`Securely saved: ${key}`);
+      return true;
+    } else {
+      // Fallback to regular storage if secure storage not available
+      logger.warning(`SecureStore not available, using fallback for ${key}`);
+      return saveToStorage(key, value);
+    }
   } catch (error) {
     logger.error(`SecureStore save error (${key}): ${error.message}`);
     // Fallback to regular storage if secure storage fails
@@ -38,8 +45,15 @@ export const saveSecure = async (key, value) => {
  */
 export const getSecure = async (key) => {
   try {
-    const value = await SecureStore.getItemAsync(key);
-    return value;
+    // Check if we're on a platform that supports SecureStore
+    if (SecureStore && typeof SecureStore.getItemAsync === 'function') {
+      const value = await SecureStore.getItemAsync(key);
+      return value;
+    } else {
+      // Fallback to regular storage if secure storage not available
+      logger.warning(`SecureStore not available, using fallback for ${key}`);
+      return getFromStorage(key);
+    }
   } catch (error) {
     logger.error(`SecureStore get error (${key}): ${error.message}`);
     // Fallback to regular storage if secure storage fails

