@@ -22,16 +22,16 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
       
       - name: Setup Java JDK
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'adopt'
           java-version: '17'
@@ -82,30 +82,19 @@ jobs:
           fi
       
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-apk
           path: ${{ steps.apk-path.outputs.path }}
           
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and Upload Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.event.inputs.version_name }}
-          release_name: Version ${{ github.event.inputs.version_name }}
+          name: Version ${{ github.event.inputs.version_name }}
           draft: false
           prerelease: ${{ github.event.inputs.build_type == 'debug' }}
-          
-      - name: Upload APK to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.apk-path.outputs.path }}
-          asset_name: ${{ steps.apk-path.outputs.name }}
-          asset_content_type: application/vnd.android.package-archive
+          files: ${{ steps.apk-path.outputs.path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
 # Note: This workflow can be manually triggered from the GitHub Actions tab
